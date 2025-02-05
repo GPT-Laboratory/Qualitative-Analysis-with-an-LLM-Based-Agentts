@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UI for Links and Prompts</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='scripts/script.js') }}" defer></script>
+  <style>
+    .container {
+      width: 80%;
+      margin: auto;
+    }
+
+    .button-group {
+      display: none;
+      margin-top: 10px;
+    }
+
+    button {
+      padding: 10px;
+      margin: 5px;
+      cursor: pointer;
+      border-radius: 4px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      outline: none;
+    }
+
+    button.selected {
+      background-color: #FFD700;
+      /* Highlight color for selected buttons */
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    .active {
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    .input-button-row button {
+      width: auto;
+      padding: 10px 20px;
+    }
+  </style>
+  <div class="container">
+
+    <h2>Submit Links</h2>
+    <div class="button-row">
+      <button class="main-button" onclick="toggleButtonGroupLinks('links-thematic', this)">Thematic</button>
+      <button class="main-button" onclick="toggleButtonGroupLinks('links-content', this)">Content</button>
+      <button class="main-button" onclick="toggleButtonGroupLinks('links-discourse', this)">Discourse</button>
+      <button class="main-button" onclick="toggleButtonGroupLinks('links-ground', this)">Ground</button>
+      <button class="main-button" onclick="toggleButtonGroupLinks('links-narrative', this)">Narrative</button>
+    </div>
+
+    <div id="links-thematic" class="button-group links">
+      <button onclick="toggleButtonSelectionLinks(this)">Issue</button>
+      <button onclick="toggleButtonSelectionLinks(this)">Cause</button>
+      <button onclick="toggleButtonSelectionLinks(this)">Solution</button>
+      <button onclick="toggleButtonSelectionLinks(this)">Pattern</button>
+      <button onclick="toggleButtonSelectionLinks(this)">Themes</button>
+    </div>
+    <div id="links-content" class="button-group links">
+      <button onclick="toggleButtonSelectionLinks(this)">Pattern</button>
+      <button onclick="toggleButtonSelectionLinks(this)">Themes</button>
+    </div>
+    <div id="links-discourse" class="button-group links">
+      <button onclick="toggleButtonSelectionLinks(this)">Pattern</button>
+      <button onclick="toggleButtonSelectionLinks(this)">Themes</button>
+    </div>
+    <div id="links-ground" class="button-group links">
+    </div>
+    <div id="links-narrative" class="button-group links">
+    </div>
+    <br>
+    <div>
+      <input type="text" id="links-input" placeholder="Enter links here seperated by commas"
+        style="width: 60%; height:30px">
+    </div>
+    <input type="text" id="links_text_input" placeholder="chatGPT just for text"
+      style="width: 60%; height: 30px; margin-top: 2px">
+    <button id="submit-links">Submit</button>
+
+    <a id="csv-download-link" href="#">Download CSV</a>
+
+    <h2>Prompt</h2>
+    <div>
+      <textarea id="prompt-input" placeholder="Enter the prompt here" style="width: 70%;"></textarea>
+      <button id="file-upload-btn" class="button">Upload File</button> <!-- Styled button -->
+      <input type="file" id="file-input" hidden />
+    </div>
+    <div class="button-row">
+      <button class="main-button" onclick="toggleButtonGroupPrompts('prompt-thematic ', this)">Thematic</button>
+      <button class="main-button" onclick="toggleButtonGroupPrompts('prompt-content', this)">Content</button>
+      <button class="main-button" onclick="toggleButtonGroupPrompts('prompt-discourse', this)">Discourse</button>
+      <button class="main-button" onclick="toggleButtonGroupPrompts('prompt-ground', this)">Ground</button>
+      <button class="main-button" onclick="toggleButtonGroupPrompts('prompt-narrative', this)">Narrative</button>
+    </div>
+    <div id="prompt-thematic" class="button-group prompt">
+      <button onclick="toggleButtonSelectionPrompts(this)">Issue</button>
+      <button onclick="toggleButtonSelectionPrompts(this)">Cause</button>
+      <button onclick="toggleButtonSelectionPrompts(this)">Solution</button>
+      <button onclick="toggleButtonSelectionPrompts(this)">Pattern</button>
+      <button onclick="toggleButtonSelectionPrompts(this)">Themes</button>
+    </div>
+    <div id="prompt-content" class="button-group prompt">
+      <button onclick="toggleButtonSelectionPrompts(this)">Pattern</button>
+      <button onclick="toggleButtonSelectionPrompts(this)">Themes</button>
+    </div>
+    <div id="prompt-discourse" class="button-group prompt">
+      <button onclick="toggleButtonSelectionPrompts(this)">Pattern</button>
+      <button onclick="toggleButtonSelectionPrompts(this)">Themes</button>
+    </div>
+    <div id="prompt-narrative" class="button-group prompt">
+    </div>
+    <div id="prompt-ground" class="button-group prompt">
+    </div>
+    <input type="text" id="prompts_text_input" placeholder="chatGPT just for text" style="width: 60%; height: 30px;">
+    <button id="submit-prompt">Submit Prompt</button>
+
+    <h2>Chat Box</h2>
+    <div class="chat-container"></div>
+    <div class="input-button-row">
+      <input type="text" id="chat-input" placeholder="Submit Chatbox Input" style="width: 60%; height:30px">
+      <button id="voice-recorder" style="margin-left: 15px;">Start Recording</button>
+    </div>
+    <button id="send-btn">send</button>
+
+    <div class="chat-content">
+      <div class="chat-details">
+        <textarea id="output-box" placeholder="output" ,
+          style="width: 70%; height: 200px; margin-top: 30px;"></textarea>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    $(document).ready(function () {
+
+      let mediaRecorder;
+      let audioChunks = [];
+
+      function startRecording() {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(stream => {
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.start();
+            mediaRecorder.ondataavailable = event => {
+              audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = sendAudioToServer;
+          }).catch(e => console.error(e));
+      }
+
+      function sendAudioToServer() {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('audio_data', audioBlob);
+        fetch('http://localhost:5003/upload_audio', {
+          method: 'POST',
+          body: formData
+        }).then(response => response.text())
+          .then(data => {
+            document.getElementById("output-box").value = data; // Update the textarea with the response
+          })
+          .catch(error => console.error(error));
+      }
+      // Function to start recording
+      // function startRecording(stream) {
+      //   mediaRecorder = new MediaRecorder(stream);
+      //   mediaRecorder.start();
+
+      //   mediaRecorder.addEventListener("dataavailable", event => {
+      //     audioChunks.push(event.data);
+      //   });
+
+      //   mediaRecorder.addEventListener("stop", () => {
+      //     const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+      //     const reader = new FileReader();
+      //     reader.readAsArrayBuffer(audioBlob);
+      //     reader.onloadend = () => {
+      //       let buffer = new Uint8Array(reader.result);
+      //       socket.emit('audio_chunk', Array.from(buffer));
+      //     };
+      //     audioChunks = [];
+      //   });
+      // }
+
+      // Voice recorder button logic
+      $('#voice-recorder').click(function () {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+          $('#output-box').val('stopped recording');
+          $('#voice-recorder').text('Start Recording');
+        } else {
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+              $('#output-box').val('recording started ...');
+              startRecording(stream);
+              $('#voice-recorder').text('Stop Recording');
+            }).catch(err => {
+              console.log("An error occurred: " + err);
+            });
+        }
+      });
+
+      // Add click event listener to the styled file upload button
+
+      // // WebSocket event for receiving transcribed text
+      // socket.on('transcription', function (msg) {
+      //   // Update textarea with transcribed text
+      //   document.getElementById("transcriptionArea").value += msg + '\n';
+      // });
+
+      // Event handler for submitting links
+      $('#submit-links').click(function () {
+        var links = $('#links-input').val();
+        var downloadLink = $('#csv-download-link');
+        var chatGPT = $('#links_text_input').val();
+        console.log(selectedButtonsLinks)
+        var dataToSend = {
+          links: links,
+          selectedButtonsLinks: selectedButtonsLinks,
+          chatGPT: chatGPT
+        }
+        downloadLink.text('Loading...');
+        downloadLink.show();
+        $.post('/submit_links', dataToSend, function (data) {
+          var csvFilename = data.csv_filename;
+          downloadLink.attr('href', '/download_csv/' + csvFilename);
+          downloadLink.text('Download ' + csvFilename);
+          downloadLink.show();
+        });
+      });
+
+      // Event handler for submitting prompts
+      $('#submit-prompt').click(function () {
+        var prompt = $('#prompt-input').val();
+        var chatGPT = $('#prompts_text_input').val();
+        var dataToSend = {
+          prompt: prompt,
+          selectedButtonsPrompts: selectedButtonsPrompts,
+          chatGPT: chatGPT
+        }
+        $('#output-box').val('Loading...');
+        $.post('/submit_prompt', dataToSend, function (data) {
+          $('#output-box').val(data.response);
+        });
+      });
+    });
+    document.getElementById('file-upload-btn').addEventListener('click', function () {
+      document.getElementById('file-input').click();
+    });
+
+    // Event listener for file input change
+    document.getElementById('file-input').addEventListener('change', function (event) {
+      var file = event.target.files[0];
+      if (file) {
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          document.getElementById('prompt-input').value = e.target.result;
+        };
+        reader.readAsText(file);
+      }
+    });
+
+    let selectedButtonsPrompts = [];
+    let selectedButtonsLinks = [];
+
+    function toggleButtonGroupLinks(group, mainButton) {
+      // Hide all button groups and remove 'selected' class from main buttons
+      $('.button-group').hide();
+      $('.main-button').removeClass('selected');
+
+      // Show the selected button group
+      $('#' + group).show();
+
+      // Toggle 'selected' class on the clicked main button
+      $(mainButton).toggleClass('selected');
+      const mainButtonText = $(mainButton).text().trim(); // Use trim to remove any extra whitespace
+      selectedButtonsLinks = []
+      // Modify selectedButtonsLinks array based on whether the button is selected or not
+      if ($(mainButton).hasClass('selected')) {
+        if (!selectedButtonsLinks.includes(mainButtonText)) {
+          selectedButtonsLinks.push(mainButtonText);
+        }
+      } else {
+        selectedButtonsLinks = selectedButtonsLinks.filter(item => item !== mainButtonText);
+      }
+
+      console.log(selectedButtonsLinks); // For debugging
+    }
+
+    function toggleButtonSelectionLinks(button) {
+      $(button).toggleClass('selected');
+      const text = $(button).text().trim(); // Use trim to remove any extra whitespace
+      if ($(button).hasClass('selected')) {
+        if (!selectedButtonsLinks.includes(text)) {
+          selectedButtonsLinks.push(text);
+        }
+      } else {
+        selectedButtonsLinks = selectedButtonsLinks.filter(item => item !== text);
+      }
+      console.log(selectedButtonsLinks); // For debugging
+    }
+    function toggleButtonGroupPrompts(group, mainButton) {
+      // Hide all button groups and remove 'selected' class from main buttons
+      $('.button-group').hide();
+      $('.main-button').removeClass('selected');
+
+      // Show the selected button group
+      $('#' + group).show();
+
+      // Toggle 'selected' class on the clicked main button
+      $(mainButton).toggleClass('selected');
+      const mainButtonText = $(mainButton).text().trim(); // Use trim to remove any extra whitespace
+      selectedButtonsPrompts = [];
+      // Modify selectedButtonsPrompts array based on whether the button is selected or not
+      if ($(mainButton).hasClass('selected')) {
+        if (!selectedButtonsPrompts.includes(mainButtonText)) {
+          selectedButtonsPrompts.push(mainButtonText);
+        }
+      } else {
+        selectedButtonsPrompts = selectedButtonsPrompts.filter(item => item !== mainButtonText);
+      }
+
+      console.log(selectedButtonsPrompts); // For debugging
+    }
+
+    function toggleButtonSelectionPrompts(button) {
+      $(button).toggleClass('selected');
+      const text = $(button).text().trim(); // Use trim to remove any extra whitespace
+      if ($(button).hasClass('selected')) {
+        if (!selectedButtonsPrompts.includes(text)) {
+          selectedButtonsPrompts.push(text);
+        }
+      } else {
+        selectedButtonsPrompts = selectedButtonsPrompts.filter(item => item !== text);
+      }
+      console.log(selectedButtonsPrompts); // For debugging
+    }
+  </script>
+  </body>
+
+</html>
